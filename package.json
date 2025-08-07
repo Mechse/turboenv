@@ -1,11 +1,11 @@
 {
   "name": "turboenv",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "scripts": {
 	"build": "tsup src/index.ts --format esm,cjs --dts",
     "prepare": "bun run build" 
   },
-  "main": "dist/index.cjs",
+  "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
