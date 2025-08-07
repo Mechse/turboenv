@@ -1,44 +1,46 @@
-import { z, type ZodRawShape, type ZodObject, type ZodTypeAny } from "zod";
+import { z, type ZodRawShape } from "zod";
 
-type EnvShape = {
-	server: ZodRawShape;
-	client: ZodRawShape;
-	runtimeEnv: Record<string, unknown>;
+type InitEnvOptions<
+	TServer extends ZodRawShape,
+	TClient extends ZodRawShape,
+> = {
+	server: TServer;
+	client: TClient;
+	runtimeEnv?: Record<string, unknown>;
 };
 
-type ValidateEnv<T extends EnvShape> = {
-	clientSchema: ZodObject<T["client"]>;
-	serverSchema: ZodObject<T["server"]>;
-	combinedSchema: ZodObject<T["client"] & T["server"]>;
-	runtimeEnv: T["runtimeEnv"];
-	clientEnv: Record<keyof T["client"], string>;
-	serverEnv: Record<keyof T["server"], string>;
-};
+export function initEnv<
+	TServer extends ZodRawShape,
+	TClient extends ZodRawShape,
+>(opts: InitEnvOptions<TServer, TClient>) {
+	const { server, client } = opts;
 
-export function initEnv<T extends EnvShape>(opts: T): ValidateEnv<T> {
-	const clientSchema = z.object(opts.client);
-	const serverSchema = z.object(opts.server);
+	const clientSchema = z.object(client);
+	const serverSchema = z.object(server);
+	const mergedSchema = clientSchema.merge(serverSchema);
 
-	const combinedSchema = clientSchema.merge(serverSchema);
+	const isClient = typeof window !== "undefined";
+	const rawEnv: Record<string, unknown> =
+		opts.runtimeEnv ?? (isClient ? import.meta.env : process.env);
 
-	const parsed = combinedSchema.parse(opts.runtimeEnv);
-
-	// Validate VITE_ prefix
-	for (const key of Object.keys(opts.client)) {
+	// Validate VITE_ prefix on client
+	for (const key of Object.keys(client)) {
 		if (!key.startsWith("VITE_")) {
 			throw new Error(
-				`❌ Invalid client environment variable "${key}". It must be prefixed with "VITE_".`,
+				`❌ Environment variable "${key}" must be prefixed with "VITE_"`,
 			);
 		}
 	}
 
-	// Throw if accessing server vars on the client
-	if (typeof window !== "undefined") {
-		for (const key of Object.keys(opts.server)) {
+	const parsed = mergedSchema.parse(rawEnv);
+
+	if (isClient) {
+		// Block access to server-only env vars on client
+		for (const key of Object.keys(server)) {
 			Object.defineProperty(parsed, key, {
 				get() {
 					throw new Error(
-						`❌ Attempted to access server env var "${key}" on the client`,
+						`❌ Attempted to access server-only env var "${key}" on the client`,
 					);
 				},
 			});
@@ -46,12 +48,8 @@ export function initEnv<T extends EnvShape>(opts: T): ValidateEnv<T> {
 	}
 
 	return {
-		clientSchema,
-		serverSchema,
-		combinedSchema,
-		runtimeEnv: parsed,
-		clientEnv: parsed as Record<keyof T["client"], string>,
-		serverEnv: parsed as Record<keyof T["server"], string>,
+		...parsed,
+		client: parsed as z.infer<z.ZodObject<TClient>>,
+		server: isClient ? undefined : (parsed as z.infer<z.ZodObject<TServer>>),
 	};
 }
-
