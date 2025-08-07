@@ -1,6 +1,6 @@
 {
   "name": "turboenv",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -13,8 +13,8 @@
   "description": "Minimal env var validation for monorepos using Zod",
   "module": "src/index.ts",
   "type": "module",
-    "scripts": {
-    "build": "tsc"
+  "scripts": {
+	"build": "tsup src/index.ts --dts"
   },
   "keywords": ["env", "zod", "validation", "monorepo", "vite", "bun", "hono"],
   "author": "Max L",
