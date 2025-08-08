@@ -43,16 +43,51 @@ export function initEnv<
 
   const isClient = typeof window !== "undefined";
 
-  // Simplified environment detection
-  let rawEnv: Record<string, unknown>;
-  if (opts.runtimeEnv) {
-    rawEnv = opts.runtimeEnv;
-  } else if (isClient) {
-    // For client-side, we rely on the bundler/user to provide runtimeEnv
-    rawEnv = {};
-  } else {
-    rawEnv = process.env;
-  }
+  // Get default environment sources
+  const getDefaultEnv = (): Record<string, unknown> => {
+    if (isClient) {
+      // On client, we'll rely on the bundler to provide import.meta.env
+      // If import.meta.env is not available, bundlers typically replace it with {}
+      try {
+        // This will be replaced by bundlers like Vite with the actual env object
+        return (import.meta as any)?.env || {};
+      } catch {
+        // Fallback for environments where import.meta is not available
+        return {};
+      }
+    } else {
+      // On server, use process.env
+      return process.env;
+    }
+  };
+
+  // Build runtime environment by merging defaults with provided runtimeEnv
+  const buildRuntimeEnv = (): Record<string, unknown> => {
+    const defaultEnv = getDefaultEnv();
+
+    if (!opts.runtimeEnv) {
+      return defaultEnv;
+    }
+
+    // If runtimeEnv is provided, merge it with defaults
+    // runtimeEnv takes precedence over defaults
+    const merged = { ...defaultEnv };
+
+    // Only merge the keys that are relevant to this environment
+    const relevantKeys = isClient
+      ? Object.keys(client)
+      : [...Object.keys(client), ...Object.keys(server)];
+
+    for (const key of relevantKeys) {
+      if (key in opts.runtimeEnv) {
+        merged[key] = opts.runtimeEnv[key];
+      }
+    }
+
+    return merged;
+  };
+
+  const rawEnv = buildRuntimeEnv();
 
   // Validate VITE_ prefix on client
   for (const key of Object.keys(client)) {
